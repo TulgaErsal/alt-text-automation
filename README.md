@@ -14,7 +14,6 @@ and writes the result back into the PowerPoint file.
 |---|---|
 | `generate_alt_text.py` | Main script |
 | `geckodriver.exe` | Firefox WebDriver (pre-bundled for Windows) |
-| `slides.pptx` | Example input file |
 
 ---
 
