@@ -185,13 +185,27 @@ class App(ctk.CTk):
             adv_frame, text="Browse…", width=90, command=self._browse_gecko
         ).grid(row=1, column=2, padx=(0, 12), pady=(4, 12))
 
-        # ── Run button ────────────────────────────────────────────────────────
+        # ── Run / Stop buttons ────────────────────────────────────────────────
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.grid(row=3, column=0, padx=16, pady=12, sticky="ew")
+        btn_frame.grid_columnconfigure(0, weight=1)
+        btn_frame.grid_columnconfigure(1, weight=0)
+
         self.run_btn = ctk.CTkButton(
-            self, text="Run", height=42,
+            btn_frame, text="Run", height=42,
             font=ctk.CTkFont(size=14, weight="bold"),
             command=self._run,
         )
-        self.run_btn.grid(row=3, column=0, padx=16, pady=12, sticky="ew")
+        self.run_btn.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+        self.stop_btn = ctk.CTkButton(
+            btn_frame, text="Stop", height=42, width=100,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color="#c0392b", hover_color="#922b21",
+            state="disabled",
+            command=self._stop,
+        )
+        self.stop_btn.grid(row=0, column=1, sticky="e")
 
         # ── Progress bar ──────────────────────────────────────────────────────
         self.progress = ctk.CTkProgressBar(self, mode="indeterminate")
@@ -233,6 +247,10 @@ class App(ctk.CTk):
         )
         if path:
             self.gecko_var.set(path)
+
+    def _stop(self):
+        self._stop_event.set()
+        self.stop_btn.configure(state="disabled", text="Stopping…")
 
     # ── logging ───────────────────────────────────────────────────────────────
 
@@ -292,7 +310,9 @@ class App(ctk.CTk):
         self.log_box.delete("1.0", "end")
         self.log_box.configure(state="disabled")
 
+        self._stop_event = threading.Event()
         self.run_btn.configure(state="disabled", text="Running…")
+        self.stop_btn.configure(state="normal")
         self.progress.start()
 
         threading.Thread(
@@ -331,19 +351,24 @@ class App(ctk.CTk):
                 purpose=purpose,
                 includes=includes,
                 tone=tone,
+                stop_event=self._stop_event,
             )
-            self.after(0, self._on_done, None)
+            aborted = self._stop_event.is_set()
+            self.after(0, self._on_done, None, aborted)
         except Exception as exc:
-            self.after(0, self._on_done, str(exc))
+            self.after(0, self._on_done, str(exc), False)
         finally:
             sys.stdout = old_stdout
 
-    def _on_done(self, error: str | None):
+    def _on_done(self, error: str | None, aborted: bool = False):
         self.progress.stop()
         self.progress.set(0)
         self.run_btn.configure(state="normal", text="Run")
+        self.stop_btn.configure(state="disabled", text="Stop")
         if error:
             messagebox.showerror("Error", error)
+        elif aborted:
+            messagebox.showwarning("Aborted", "Processing was stopped. Any completed slides have been saved.")
         else:
             messagebox.showinfo("Done", "Alt text generation complete!")
 

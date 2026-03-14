@@ -23,6 +23,7 @@ import io
 import re
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -577,6 +578,7 @@ def process_presentation(
     purpose: str | None,
     includes: list[str],
     tone: str | None,
+    stop_event: threading.Event | None = None,
 ) -> None:
     prs = Presentation(pptx_path)
 
@@ -603,6 +605,10 @@ def process_presentation(
         errors = 0
 
         for idx, (slide_num, shape) in enumerate(images, start=1):
+            if stop_event and stop_event.is_set():
+                print("\nAborted by user.\n")
+                break
+
             image = shape.image
             ct = image.content_type.lower()
 
