@@ -12,7 +12,8 @@ and writes the result back into the PowerPoint file.
 
 | File | Purpose |
 |---|---|
-| `generate_alt_text.py` | Main script |
+| `generate_alt_text.py` | Core script (also usable as a CLI) |
+| `gui.py` | Desktop GUI front-end (CustomTkinter) |
 | `geckodriver.exe` | Firefox WebDriver (pre-bundled for Windows) |
 
 ---
@@ -31,7 +32,7 @@ Download from [python.org](https://www.python.org/downloads/) and make sure
 Install all required packages with one command:
 
 ```
-pip install selenium python-pptx Pillow cairosvg
+pip install selenium python-pptx Pillow cairosvg customtkinter
 ```
 
 | Package | Version tested | Purpose |
@@ -40,6 +41,7 @@ pip install selenium python-pptx Pillow cairosvg
 | `python-pptx` | any recent | Read/write `.pptx` files |
 | `Pillow` | any recent | Convert BMP/TIFF/EMF/WMF images to PNG |
 | `cairosvg` | any recent | Convert SVG images to PNG |
+| `customtkinter` | any recent | Desktop GUI (`gui.py` only) |
 
 > **`cairosvg`** is optional — the script still works without it, but SVG
 > shapes will fail with a descriptive error message rather than being skipped
@@ -78,7 +80,7 @@ University of Michigan (or affiliated institution) Google account.
 2. **Install Python packages:**
 
    ```
-   pip install selenium python-pptx Pillow
+   pip install selenium python-pptx Pillow cairosvg customtkinter
    ```
 
 3. **Verify geckodriver** (Firefox only):
@@ -90,6 +92,28 @@ University of Michigan (or affiliated institution) Google account.
 ---
 
 ## Usage
+
+### GUI (recommended)
+
+```
+python gui.py
+```
+
+A desktop window opens with all options available as form controls.
+
+1. **Select input PPTX** — use the Browse button or type a path. The output
+   path is filled in automatically as `<name>_alt_text.pptx`.
+2. **Adjust options** — alt text version, browser, purpose, tone, include
+   checkboxes. The Geckodriver path field under Advanced (Firefox only) can be
+   left blank if `geckodriver.exe` is in the same folder as the script — it is
+   detected automatically.
+3. **Click Run.** The browser opens; sign in with your institutional Google
+   account. Progress streams into the Log area in real time.
+4. **Click Stop** (red button) at any time to abort after the current image
+   finishes. Slides processed so far are saved to the output file.
+5. **Clear** the Log area with the Clear button above it.
+
+### Command line
 
 ```
 python generate_alt_text.py <input.pptx> [options]
@@ -125,7 +149,7 @@ python generate_alt_text.py slides.pptx
 | `--output` | `-o` | `<stem>_alt_text.pptx` | Output file path |
 | `--version` | `-v` | `long` | Which alt text length to embed: `short` (≈ 1 sentence), `medium` (≈ 2–3 sentences), or `long` (full description) |
 | `--browser` | `-b` | `auto` | Browser to use. `auto` tries Firefox → Chrome → Edge |
-| `--geckodriver` | `-g` | `geckodriver.exe` in script folder | Path to `geckodriver` executable (Firefox only) |
+| `--geckodriver` | `-g` | `geckodriver.exe` in script folder | Path to `geckodriver` executable (Firefox only). Can be omitted if `geckodriver.exe` is in the same folder as the script — it is detected automatically. |
 | `--purpose` | `-p` | *(none)* | Purpose/Use Case radio button — see table below |
 | `--include` | `-i` | *(none)* | Checkboxes to tick — can be repeated |
 | `--tone` | `-t` | *(none)* | Tone of the generated alt text — see table below |
