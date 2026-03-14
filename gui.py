@@ -170,7 +170,7 @@ class App(ctk.CTk):
         adv_frame.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            adv_frame, text="Advanced", font=ctk.CTkFont(size=13, weight="bold")
+            adv_frame, text="Advanced (for Firefox only)", font=ctk.CTkFont(size=13, weight="bold")
         ).grid(row=0, column=0, columnspan=3, sticky="w", padx=12, pady=(10, 4))
 
         ctk.CTkLabel(adv_frame, text="Geckodriver path:").grid(
@@ -213,9 +213,17 @@ class App(ctk.CTk):
         self.progress.set(0)
 
         # ── Log section ───────────────────────────────────────────────────────
+        log_header = ctk.CTkFrame(self, fg_color="transparent")
+        log_header.grid(row=5, column=0, sticky="ew", padx=16, pady=(4, 0))
+        log_header.grid_columnconfigure(0, weight=1)
+
         ctk.CTkLabel(
-            self, text="Log", font=ctk.CTkFont(size=13, weight="bold")
-        ).grid(row=5, column=0, sticky="w", padx=16, pady=(4, 0))
+            log_header, text="Log", font=ctk.CTkFont(size=13, weight="bold")
+        ).grid(row=0, column=0, sticky="w")
+        ctk.CTkButton(
+            log_header, text="Clear", width=70, height=26,
+            command=self._clear_log,
+        ).grid(row=0, column=1, sticky="e")
 
         self.log_box = ctk.CTkTextbox(self, state="disabled", wrap="word")
         self.log_box.grid(row=6, column=0, sticky="nsew", padx=16, pady=(4, 16))
@@ -259,6 +267,11 @@ class App(ctk.CTk):
         self.log_box.configure(state="normal")
         self.log_box.insert("end", text)
         self.log_box.see("end")
+        self.log_box.configure(state="disabled")
+
+    def _clear_log(self):
+        self.log_box.configure(state="normal")
+        self.log_box.delete("1.0", "end")
         self.log_box.configure(state="disabled")
 
     # ── run orchestration ─────────────────────────────────────────────────────
