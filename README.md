@@ -269,6 +269,13 @@ python generate_alt_text.py slides.pptx \
 | BMP, TIFF, EMF, WMF | Converted to PNG automatically (requires Pillow) |
 | SVG | Converted to PNG automatically (requires cairosvg) |
 
+> **Tip for vector graphics:** If you have a choice of format when inserting
+> vector images into PowerPoint, prefer **SVG** over EMF or WMF. SVG conversion
+> via `cairosvg` is reliable and produces clean raster output. EMF/WMF
+> conversion through Pillow is best-effort and may fail or produce poor results
+> for complex metafiles. In PowerPoint, you can insert an SVG via
+> **Insert → Pictures → This Device**, selecting an `.svg` file directly.
+
 ---
 
 ## Troubleshooting
