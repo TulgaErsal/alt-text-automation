@@ -31,14 +31,21 @@ Download from [python.org](https://www.python.org/downloads/) and make sure
 Install all required packages with one command:
 
 ```
-pip install selenium python-pptx Pillow
+pip install selenium python-pptx Pillow cairosvg
 ```
 
 | Package | Version tested | Purpose |
 |---|---|---|
 | `selenium` | 4.6 or later | Browser automation |
 | `python-pptx` | any recent | Read/write `.pptx` files |
-| `Pillow` | any recent | Convert BMP/TIFF images to PNG |
+| `Pillow` | any recent | Convert BMP/TIFF/EMF/WMF images to PNG |
+| `cairosvg` | any recent | Convert SVG images to PNG |
+
+> **`cairosvg`** is optional — the script still works without it, but SVG
+> shapes will fail with a descriptive error message rather than being skipped
+> silently.
+
+> EMF and WMF conversion uses Pillow, which does not handle complex metafiles well.
 
 > **Selenium 4.6+** bundles Selenium Manager, which automatically downloads
 > the correct ChromeDriver or Edge WebDriver when you use Chrome or Edge.
@@ -199,8 +206,8 @@ Selects the tone from the dropdown menu.
    [2/3] Slide 2 — 'Picture 5' (image/jpeg)
      OK — A photograph of the engineering building exterior ...
 
-   [3/3] Slide 3 — 'Graphic 4' (image/png)
-     SKIP — unsupported vector format (image/x-emf)
+   [3/3] Slide 3 — 'Graphic 4' (image/x-emf)
+     OK — A diagram showing the system architecture with three connected components ...
    ```
 
 4. **Output file.** When all images are processed the modified presentation
@@ -209,8 +216,8 @@ Selects the tone from the dropdown menu.
    ```
    ────────────────────────────────────────────────────────────
    Total images : 3
-     Processed  : 2
-     Skipped    : 1  (unsupported vector formats)
+     Processed  : 3
+     Skipped    : 0
      Errors     : 0
    Output saved : slides_alt_text.pptx
    ```
@@ -259,8 +266,8 @@ python generate_alt_text.py slides.pptx \
 | Format | Handling |
 |---|---|
 | JPEG, PNG, GIF, WebP | Uploaded directly |
-| BMP, TIFF | Converted to PNG automatically (requires Pillow) |
-| EMF, WMF, SVG | Skipped (vector formats not supported by the tool) |
+| BMP, TIFF, EMF, WMF | Converted to PNG automatically (requires Pillow) |
+| SVG | Converted to PNG automatically (requires cairosvg) |
 
 ---
 
