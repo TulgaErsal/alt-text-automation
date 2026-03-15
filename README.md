@@ -101,17 +101,35 @@ python gui.py
 
 A desktop window opens with all options available as form controls.
 
-1. **Select input PPTX** — use the Browse button or type a path. The output
+1. **Browser launches automatically.** When the GUI starts it opens a browser
+   window and navigates to the tool. The Browser status row shows
+   *"Launching browser…"* then *"Waiting for sign-in…"*.
+
+2. **Sign in.** Complete the Google authentication in the browser window. Once
+   your profile is detected the status changes to *"Signed in ✓"* and the
+   Run button becomes available. You only need to sign in once per session.
+
+3. **Select input PPTX** — use the Browse button or type a path. The output
    path is filled in automatically as `<name>_alt_text.pptx`.
-2. **Adjust options** — alt text version, browser, purpose, tone, include
+
+4. **Adjust options** — alt text version, browser, purpose, tone, include
    checkboxes. The Geckodriver path field under Advanced (Firefox only) can be
    left blank if `geckodriver.exe` is in the same folder as the script — it is
    detected automatically.
-3. **Click Run.** The browser opens; sign in with your institutional Google
-   account. Progress streams into the Log area in real time.
-4. **Click Stop** (red button) at any time to abort after the current image
+
+5. **Click Run.** Processing starts immediately using the existing browser
+   session. Progress streams into the Log area in real time. When the run
+   finishes you can load another PPTX and click Run again without signing in
+   again.
+
+6. **Click Stop** (red button) at any time to abort after the current image
    finishes. Slides processed so far are saved to the output file.
-5. **Clear** the Log area with the Clear button above it.
+
+7. **Clear** the Log area with the Clear button above it.
+
+8. **Reconnect** — if the browser window is closed or the session is lost, the
+   status updates to *"Connection lost"*. Click Reconnect to launch a new
+   browser and sign in again.
 
 ### Command line
 
