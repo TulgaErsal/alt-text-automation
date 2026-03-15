@@ -20,7 +20,9 @@ try:
         PURPOSE_OPTIONS,
         INCLUDE_OPTIONS,
         TONE_OPTIONS,
-        process_presentation,
+        build_driver,
+        wait_for_auth,
+        run_batch,
         _LOCAL_GECKODRIVER,
     )
 except ImportError as exc:
@@ -35,20 +37,37 @@ ctk.set_default_color_theme("blue")
 
 DEFAULT_URL = "https://aihelper.engin.umich.edu/alt-text-generator"
 
+# Status display values
+_S_LAUNCHING     = ("Launching browser…",    "gray")
+_S_WAITING       = ("Waiting for sign-in…",  "orange")
+_S_READY         = ("Signed in ✓",           "green")
+_S_DISCONNECTED  = ("Not connected",         "gray")
+_S_LOST          = ("Connection lost",       "#c0392b")
+_S_TIMEOUT       = ("Sign-in timed out",     "#c0392b")
+
 
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Alt Text Automation")
-        self.geometry("820x760")
-        self.minsize(640, 600)
+        self.geometry("820x800")
+        self.minsize(640, 640)
+
+        self._driver = None
+        self._connecting = False
+        self._stop_event = threading.Event()
+
         self._build_ui()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # Auto-connect once the event loop is running
+        self.after(300, self._connect)
 
     # ── UI construction ───────────────────────────────────────────────────────
 
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(6, weight=1)   # log area stretches
+        self.grid_rowconfigure(7, weight=1)   # log area stretches
 
         PAD = {"padx": 16, "pady": (8, 0)}
 
@@ -185,15 +204,35 @@ class App(ctk.CTk):
             adv_frame, text="Browse…", width=90, command=self._browse_gecko
         ).grid(row=1, column=2, padx=(0, 12), pady=(4, 12))
 
+        # ── Browser status row ────────────────────────────────────────────────
+        status_frame = ctk.CTkFrame(self)
+        status_frame.grid(row=3, column=0, sticky="ew", padx=16, pady=(8, 0))
+        status_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            status_frame, text="Browser:", font=ctk.CTkFont(weight="bold")
+        ).grid(row=0, column=0, sticky="w", padx=12, pady=10)
+
+        self.status_label = ctk.CTkLabel(status_frame, text=_S_DISCONNECTED[0],
+                                         text_color=_S_DISCONNECTED[1])
+        self.status_label.grid(row=0, column=1, sticky="w", padx=4, pady=10)
+
+        self.reconnect_btn = ctk.CTkButton(
+            status_frame, text="Reconnect", width=110,
+            command=self._connect,
+        )
+        self.reconnect_btn.grid(row=0, column=2, padx=(0, 12), pady=10)
+
         # ── Run / Stop buttons ────────────────────────────────────────────────
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=3, column=0, padx=16, pady=12, sticky="ew")
+        btn_frame.grid(row=4, column=0, padx=16, pady=12, sticky="ew")
         btn_frame.grid_columnconfigure(0, weight=1)
         btn_frame.grid_columnconfigure(1, weight=0)
 
         self.run_btn = ctk.CTkButton(
             btn_frame, text="Run", height=42,
             font=ctk.CTkFont(size=14, weight="bold"),
+            state="disabled",
             command=self._run,
         )
         self.run_btn.grid(row=0, column=0, sticky="ew", padx=(0, 8))
@@ -209,12 +248,12 @@ class App(ctk.CTk):
 
         # ── Progress bar ──────────────────────────────────────────────────────
         self.progress = ctk.CTkProgressBar(self, mode="indeterminate")
-        self.progress.grid(row=4, column=0, padx=16, pady=(0, 4), sticky="ew")
+        self.progress.grid(row=5, column=0, padx=16, pady=(0, 4), sticky="ew")
         self.progress.set(0)
 
         # ── Log section ───────────────────────────────────────────────────────
         log_header = ctk.CTkFrame(self, fg_color="transparent")
-        log_header.grid(row=5, column=0, sticky="ew", padx=16, pady=(4, 0))
+        log_header.grid(row=6, column=0, sticky="ew", padx=16, pady=(4, 0))
         log_header.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
@@ -226,7 +265,7 @@ class App(ctk.CTk):
         ).grid(row=0, column=1, sticky="e")
 
         self.log_box = ctk.CTkTextbox(self, state="disabled", wrap="word")
-        self.log_box.grid(row=6, column=0, sticky="nsew", padx=16, pady=(4, 16))
+        self.log_box.grid(row=7, column=0, sticky="nsew", padx=16, pady=(4, 16))
 
     # ── file dialogs ──────────────────────────────────────────────────────────
 
@@ -255,6 +294,86 @@ class App(ctk.CTk):
         )
         if path:
             self.gecko_var.set(path)
+
+    # ── browser connect / disconnect ──────────────────────────────────────────
+
+    def _geckodriver_path(self) -> Path | None:
+        gecko_str = self.gecko_var.get().strip()
+        if gecko_str:
+            return Path(gecko_str)
+        if _LOCAL_GECKODRIVER.exists():
+            return _LOCAL_GECKODRIVER
+        return None
+
+    def _connect(self):
+        if self._connecting:
+            return
+        self._connecting = True
+
+        # Close any existing browser first
+        if self._driver is not None:
+            try:
+                self._driver.quit()
+            except Exception:
+                pass
+            self._driver = None
+
+        self._set_status(*_S_LAUNCHING)
+        self.reconnect_btn.configure(state="disabled")
+        self.run_btn.configure(state="disabled")
+
+        browser    = self.browser_var.get()
+        geckodriver = self._geckodriver_path()
+        url        = self.url_var.get().strip() or DEFAULT_URL
+
+        threading.Thread(
+            target=self._connect_worker,
+            args=(browser, geckodriver, url),
+            daemon=True,
+        ).start()
+
+    def _connect_worker(self, browser, geckodriver, url):
+        class _GuiWriter(io.TextIOBase):
+            def __init__(self_, app):
+                self_._app = app
+            def write(self_, text):
+                if text:
+                    self_._app.after(0, self_._app._log, text)
+                return len(text)
+            def flush(self_):
+                pass
+
+        old_stdout = sys.stdout
+        sys.stdout = _GuiWriter(self)
+        try:
+            driver = build_driver(browser, geckodriver)
+            self._driver = driver
+            self.after(0, self._set_status, *_S_WAITING)
+            wait_for_auth(driver, url, raise_on_timeout=True)
+            self.after(0, self._on_connect_done, None)
+        except TimeoutError as exc:
+            self._driver = None
+            self.after(0, self._on_connect_done, str(exc), True)
+        except Exception as exc:
+            self._driver = None
+            self.after(0, self._on_connect_done, str(exc))
+        finally:
+            sys.stdout = old_stdout
+
+    def _on_connect_done(self, error: str | None, timed_out: bool = False):
+        self._connecting = False
+        self.reconnect_btn.configure(state="normal")
+        if error:
+            status = _S_TIMEOUT if timed_out else _S_LOST
+            self._set_status(*status)
+        else:
+            self._set_status(*_S_READY)
+            self.run_btn.configure(state="normal")
+
+    def _set_status(self, text: str, color: str):
+        self.status_label.configure(text=text, text_color=color)
+
+    # ── stop ──────────────────────────────────────────────────────────────────
 
     def _stop(self):
         self._stop_event.set()
@@ -296,7 +415,6 @@ class App(ctk.CTk):
 
         url     = self.url_var.get().strip() or DEFAULT_URL
         version = self.version_var.get()
-        browser = self.browser_var.get()
 
         purpose = self.purpose_var.get()
         purpose = None if purpose == "(none)" else purpose
@@ -310,57 +428,40 @@ class App(ctk.CTk):
         tone = self.tone_var.get()
         tone = None if tone == "(none)" else tone
 
-        gecko_str = self.gecko_var.get().strip()
-        if gecko_str:
-            geckodriver = Path(gecko_str)
-        elif _LOCAL_GECKODRIVER.exists():
-            geckodriver = _LOCAL_GECKODRIVER
-        else:
-            geckodriver = None
-
-        # Clear log
-        self.log_box.configure(state="normal")
-        self.log_box.delete("1.0", "end")
-        self.log_box.configure(state="disabled")
-
         self._stop_event = threading.Event()
         self.run_btn.configure(state="disabled", text="Running…")
         self.stop_btn.configure(state="normal")
+        self.reconnect_btn.configure(state="disabled")
         self.progress.start()
 
         threading.Thread(
             target=self._worker,
-            args=(input_path, output_path, url, version, browser,
-                  geckodriver, purpose, includes, tone),
+            args=(input_path, output_path, url, version, purpose, includes, tone),
             daemon=True,
         ).start()
 
-    def _worker(self, input_path, output_path, url, version,
-                browser, geckodriver, purpose, includes, tone):
-        """Background thread: redirect stdout → log box, then run the backend."""
+    def _worker(self, input_path, output_path, url, version, purpose, includes, tone):
+        """Background thread: redirect stdout → log box, then run the batch."""
 
         class _GuiWriter(io.TextIOBase):
             def __init__(self_, app):
                 self_._app = app
-
             def write(self_, text):
                 if text:
                     self_._app.after(0, self_._app._log, text)
                 return len(text)
-
             def flush(self_):
                 pass
 
         old_stdout = sys.stdout
         sys.stdout = _GuiWriter(self)
         try:
-            process_presentation(
+            run_batch(
+                driver=self._driver,
                 pptx_path=input_path,
                 output_path=output_path,
                 tool_url=url,
                 version=version,
-                browser=browser,
-                geckodriver_path=geckodriver,
                 purpose=purpose,
                 includes=includes,
                 tone=tone,
@@ -369,21 +470,49 @@ class App(ctk.CTk):
             aborted = self._stop_event.is_set()
             self.after(0, self._on_done, None, aborted)
         except Exception as exc:
-            self.after(0, self._on_done, str(exc), False)
+            # Check if the browser was closed externally
+            err = str(exc)
+            lost = any(k in err.lower() for k in ("webdriver", "session", "browser"))
+            self.after(0, self._on_done, err, False, lost)
         finally:
             sys.stdout = old_stdout
 
-    def _on_done(self, error: str | None, aborted: bool = False):
+    def _on_done(self, error: str | None, aborted: bool = False, connection_lost: bool = False):
         self.progress.stop()
         self.progress.set(0)
-        self.run_btn.configure(state="normal", text="Run")
         self.stop_btn.configure(state="disabled", text="Stop")
-        if error:
+        self.reconnect_btn.configure(state="normal")
+
+        if connection_lost:
+            self._driver = None
+            self._set_status(*_S_LOST)
+            self.run_btn.configure(state="disabled", text="Run")
+            messagebox.showerror(
+                "Connection lost",
+                "The browser session was lost.\n\nClick Reconnect to sign in again."
+            )
+        elif error:
+            self.run_btn.configure(state="normal", text="Run")
             messagebox.showerror("Error", error)
         elif aborted:
-            messagebox.showwarning("Aborted", "Processing was stopped. Any completed slides have been saved.")
+            self.run_btn.configure(state="normal", text="Run")
+            messagebox.showwarning(
+                "Aborted",
+                "Processing was stopped. Any completed slides have been saved."
+            )
         else:
+            self.run_btn.configure(state="normal", text="Run")
             messagebox.showinfo("Done", "Alt text generation complete!")
+
+    # ── window close ──────────────────────────────────────────────────────────
+
+    def _on_close(self):
+        if self._driver is not None:
+            try:
+                self._driver.quit()
+            except Exception:
+                pass
+        self.destroy()
 
 
 def main():

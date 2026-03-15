@@ -357,10 +357,13 @@ def build_driver(browser: str, geckodriver_path: Path | None) -> webdriver.Remot
     )
 
 
-def wait_for_auth(driver: webdriver.Firefox, url: str) -> None:
+def wait_for_auth(driver: webdriver.Firefox, url: str, raise_on_timeout: bool = False) -> None:
     """
     Navigate to the tool and block until the user has authenticated.
     Authentication is confirmed when the profile link appears in the header.
+
+    When raise_on_timeout is True, raises TimeoutError instead of calling
+    sys.exit (used by the GUI so it can handle the failure gracefully).
     """
     print(f"\nOpening browser → {url}")
     driver.get(url)
@@ -374,6 +377,8 @@ def wait_for_auth(driver: webdriver.Firefox, url: str) -> None:
             EC.presence_of_element_located((By.CSS_SELECTOR, 'a[href="/profile"]'))
         )
     except TimeoutException:
+        if raise_on_timeout:
+            raise TimeoutError("Timed out waiting for authentication.")
         driver.quit()
         sys.exit("Timed out waiting for authentication. Please re-run the script.")
 
@@ -568,18 +573,21 @@ def upload_and_generate(
 
 # ── orchestration ─────────────────────────────────────────────────────────────
 
-def process_presentation(
+def run_batch(
+    driver: webdriver.Remote,
     pptx_path: Path,
     output_path: Path,
     tool_url: str,
     version: str,
-    browser: str,
-    geckodriver_path: Path | None,
     purpose: str | None,
     includes: list[str],
     tone: str | None,
     stop_event: threading.Event | None = None,
 ) -> None:
+    """
+    Process a presentation using an already-authenticated driver.
+    The caller is responsible for browser lifecycle (build_driver / driver.quit).
+    """
     prs = Presentation(pptx_path)
 
     # Collect all picture shapes up front so we can show progress
@@ -595,64 +603,56 @@ def process_presentation(
 
     print(f"Found {len(images)} picture(s) across {len(prs.slides)} slide(s).")
 
-    driver = build_driver(browser, geckodriver_path)
+    ok = 0
+    skipped = 0
+    errors = 0
 
-    try:
-        wait_for_auth(driver, tool_url)
+    for idx, (slide_num, shape) in enumerate(images, start=1):
+        if stop_event and stop_event.is_set():
+            print("\nAborted by user.\n")
+            break
 
-        ok = 0
-        skipped = 0
-        errors = 0
+        image = shape.image
+        ct = image.content_type.lower()
 
-        for idx, (slide_num, shape) in enumerate(images, start=1):
-            if stop_event and stop_event.is_set():
-                print("\nAborted by user.\n")
-                break
+        print(f"[{idx}/{len(images)}] Slide {slide_num} — {shape.name!r} ({ct})")
 
-            image = shape.image
-            ct = image.content_type.lower()
+        # Save image to a temp file (converts raster and vector formats to PNG as needed)
+        tmp_path = None
+        try:
+            tmp_path = save_image_to_temp(image.blob, ct)
 
-            print(f"[{idx}/{len(images)}] Slide {slide_num} — {shape.name!r} ({ct})")
+            # Navigate to a fresh form (keeps the session alive)
+            reset_page(driver, tool_url)
 
-            # Save image to a temp file (converts raster and vector formats to PNG as needed)
-            tmp_path = None
-            try:
-                tmp_path = save_image_to_temp(image.blob, ct)
+            # Upload and generate
+            raw_output = upload_and_generate(
+                driver, tmp_path,
+                purpose=purpose, includes=includes, tone=tone,
+            )
 
-                # Navigate to a fresh form (keeps the session alive)
-                reset_page(driver, tool_url)
+            # Extract the requested version
+            alt_text = extract_version(raw_output, version)
 
-                # Upload and generate
-                raw_output = upload_and_generate(
-                    driver, tmp_path,
-                    purpose=purpose, includes=includes, tone=tone,
-                )
-
-                # Extract the requested version
-                alt_text = extract_version(raw_output, version)
-
-                # Write into the PPTX XML
-                wrote = set_alt_text(shape, description=alt_text)
-                if wrote:
-                    preview = alt_text[:100] + ("…" if len(alt_text) > 100 else "")
-                    print(f"  OK — {preview}\n")
-                    ok += 1
-                else:
-                    print("  WARNING — could not locate cNvPr element; alt text not written.\n")
-                    errors += 1
-
-            except Exception as exc:
-                print(f"  ERROR — {exc}\n")
+            # Write into the PPTX XML
+            wrote = set_alt_text(shape, description=alt_text)
+            if wrote:
+                preview = alt_text[:100] + ("…" if len(alt_text) > 100 else "")
+                print(f"  OK — {preview}\n")
+                ok += 1
+            else:
+                print("  WARNING — could not locate cNvPr element; alt text not written.\n")
                 errors += 1
 
-            finally:
-                if tmp_path and tmp_path.exists():
-                    tmp_path.unlink(missing_ok=True)
+        except Exception as exc:
+            print(f"  ERROR — {exc}\n")
+            errors += 1
 
-        prs.save(output_path)
+        finally:
+            if tmp_path and tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
 
-    finally:
-        driver.quit()
+    prs.save(output_path)
 
     print("─" * 60)
     print(f"Total images : {len(images)}")
@@ -660,6 +660,36 @@ def process_presentation(
     print(f"  Skipped    : {skipped}")
     print(f"  Errors     : {errors}")
     print(f"Output saved : {output_path}")
+
+
+def process_presentation(
+    pptx_path: Path,
+    output_path: Path,
+    tool_url: str,
+    version: str,
+    browser: str,
+    geckodriver_path: Path | None,
+    purpose: str | None,
+    includes: list[str],
+    tone: str | None,
+    stop_event: threading.Event | None = None,
+) -> None:
+    driver = build_driver(browser, geckodriver_path)
+    try:
+        wait_for_auth(driver, tool_url)
+        run_batch(
+            driver=driver,
+            pptx_path=pptx_path,
+            output_path=output_path,
+            tool_url=tool_url,
+            version=version,
+            purpose=purpose,
+            includes=includes,
+            tone=tone,
+            stop_event=stop_event,
+        )
+    finally:
+        driver.quit()
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
