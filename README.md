@@ -353,7 +353,7 @@ Use `--version short` or `--version medium` for shorter output.
 2. You authenticate with your institutional Google account once.
 3. For each picture shape in the presentation the script:
    - Extracts the image bytes from the `.pptx` package.
-   - Converts unsupported formats (BMP, TIFF) to PNG using Pillow.
+   - Converts unsupported formats (BMP, TIFF, EMF, WMF) to PNG using Pillow.
    - Writes the image to a temporary file.
    - Navigates to a fresh copy of the form.
    - Uploads the image and sets any requested form options (purpose, includes, tone).
