@@ -31,7 +31,14 @@ from pathlib import Path
 
 try:
     from selenium import webdriver
-    from selenium.common.exceptions import SessionNotCreatedException, TimeoutException
+    from selenium.common.exceptions import (
+        InvalidSessionIdException,
+        NoSuchWindowException,
+        SessionNotCreatedException,
+        TimeoutException,
+    )
+    # Exceptions that mean the browser process is gone — not a per-image error
+    _SESSION_LOST_EXCEPTIONS = (InvalidSessionIdException, NoSuchWindowException)
     from selenium.webdriver.chrome.options import Options as ChromeOptions
     from selenium.webdriver.chrome.service import Service as ChromeService
     from selenium.webdriver.common.by import By
@@ -644,6 +651,8 @@ def run_batch(
                 print("  WARNING — could not locate cNvPr element; alt text not written.\n")
                 errors += 1
 
+        except _SESSION_LOST_EXCEPTIONS:
+            raise   # browser is gone — let the caller handle it
         except Exception as exc:
             print(f"  ERROR — {exc}\n")
             errors += 1

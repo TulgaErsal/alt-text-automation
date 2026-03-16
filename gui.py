@@ -470,9 +470,8 @@ class App(ctk.CTk):
             aborted = self._stop_event.is_set()
             self.after(0, self._on_done, None, aborted)
         except Exception as exc:
-            # Check if the browser was closed externally
             err = str(exc)
-            lost = any(k in err.lower() for k in ("webdriver", "session", "browser"))
+            lost = type(exc).__name__ in ("InvalidSessionIdException", "NoSuchWindowException")
             self.after(0, self._on_done, err, False, lost)
         finally:
             sys.stdout = old_stdout
