@@ -14,6 +14,8 @@ and writes the result back into the PowerPoint file.
 |---|---|
 | `generate_alt_text.py` | Core script (also usable as a CLI) |
 | `gui.py` | Desktop GUI front-end (CustomTkinter) |
+| `web_app.py` | Web interface (Flask) — no client-side installation required |
+| `templates/index.html` | Web UI template |
 | `geckodriver.exe` | Firefox WebDriver (pre-bundled for Windows) |
 
 ---
@@ -42,6 +44,7 @@ pip install selenium python-pptx Pillow cairosvg customtkinter
 | `Pillow` | any recent | Convert BMP/TIFF/EMF/WMF images to PNG |
 | `cairosvg` | any recent | Convert SVG images to PNG |
 | `customtkinter` | any recent | Desktop GUI (`gui.py` only) |
+| `flask` | 3.x | Web interface (`web_app.py` only) |
 
 > **`cairosvg`** is optional — the script still works without it, but SVG
 > shapes will fail with a descriptive error message rather than being skipped
@@ -93,7 +96,23 @@ University of Michigan (or affiliated institution) Google account.
 
 ## Usage
 
-### GUI (recommended)
+### Web interface (no client installation required)
+
+```
+pip install flask
+python web_app.py
+```
+
+Open `http://localhost:5000` in your browser (or share the URL with others on the same network). The browser automation runs on the **server machine** — the person running `web_app.py` signs in once, and any user can then upload `.pptx` files through the web UI and download the processed result.
+
+1. **Click "Connect Browser"** — a browser opens on the server and navigates to the tool. The status indicator changes to *"Waiting for sign-in…"*
+2. **Sign in** on the server machine. The status changes to *"Signed in ✓"*.
+3. **Upload a `.pptx` file**, choose options, and click **Generate Alt Text**.
+4. Watch the real-time log, then **download** the processed file when done.
+
+---
+
+### GUI (desktop)
 
 ```
 python gui.py
