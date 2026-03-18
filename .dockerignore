@@ -1,0 +1,8 @@
+.git
+__pycache__
+*.pyc
+*.pptx
+geckodriver.exe
+gui.py
+README.md
+source.html
