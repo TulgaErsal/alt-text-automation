@@ -1,4 +1,7 @@
 flask>=3.0
+authlib>=1.3
+python-dotenv>=1.0
+playwright>=1.40
 selenium>=4.0
 python-pptx
 Pillow

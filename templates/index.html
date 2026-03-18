@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alt Text Automation</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f6f8;
+      --surface: #ffffff;
+      --border: #e2e5ea;
+      --text: #1a1d23;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --green: #16a34a;
+      --orange: #d97706;
+      --red: #dc2626;
+      --radius: 10px;
+      --shadow: 0 1px 4px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.04);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 3rem;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 700; }
+    header .subtitle { font-size: .8rem; color: var(--muted); margin-top: 1px; }
+
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .user-chip {
+      font-size: .8rem;
+      color: var(--muted);
+    }
+    .user-chip strong { color: var(--text); }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: .3rem .85rem .3rem .6rem;
+      font-size: .8rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #9ca3af;
+      flex-shrink: 0;
+      transition: background .3s;
+    }
+    .status-pill.ready    { color: var(--green);  border-color: #bbf7d0; background: #f0fdf4; }
+    .status-pill.ready    .status-dot { background: var(--green); }
+    .status-pill.waiting  { color: var(--orange); border-color: #fde68a; background: #fffbeb; }
+    .status-pill.waiting  .status-dot { background: var(--orange); animation: pulse 1.2s ease-in-out infinite; }
+    .status-pill.launching { color: #7c3aed; border-color: #ddd6fe; background: #f5f3ff; }
+    .status-pill.launching .status-dot { background: #7c3aed; animation: pulse 1.2s ease-in-out infinite; }
+    .status-pill.error, .status-pill.timeout { color: var(--red); border-color: #fecaca; background: #fef2f2; }
+    .status-pill.error .status-dot, .status-pill.timeout .status-dot { background: var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── Layout ── */
+    .container { max-width: 860px; margin: 2rem auto; padding: 0 1.25rem; display: flex; flex-direction: column; gap: 1.25rem; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+    }
+    .card-title {
+      font-size: .8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin-bottom: 1.1rem;
+    }
+
+    /* ── Login page ── */
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+    }
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 2.5rem 2rem;
+      max-width: 380px;
+      width: 100%;
+      text-align: center;
+    }
+    .login-card h2 { font-size: 1.3rem; margin-bottom: .4rem; }
+    .login-card p  { font-size: .875rem; color: var(--muted); margin-bottom: 1.75rem; }
+    .btn-google {
+      display: inline-flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .65rem 1.4rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      text-decoration: none;
+      transition: background .15s, box-shadow .15s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    .btn-google:hover { background: var(--bg); box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+    .google-logo { width: 18px; height: 18px; }
+
+    /* ── Connect card ── */
+    .connect-row {
+      display: flex;
+      gap: .75rem;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+    .connect-row .field-group { flex: 1; min-width: 180px; }
+
+    .novnc-hint {
+      display: none;
+      margin-top: 1rem;
+      padding: .85rem 1rem;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      font-size: .875rem;
+      color: #1e40af;
+      line-height: 1.6;
+    }
+    .novnc-hint.show { display: block; }
+    .novnc-hint a { color: var(--accent); font-weight: 600; }
+
+    /* ── Form fields ── */
+    label { display: block; font-size: .8rem; font-weight: 600; color: var(--muted); margin-bottom: .35rem; }
+    input[type=text], input[type=url], select {
+      width: 100%;
+      padding: .55rem .75rem;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: .875rem;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    input[type=text]:focus, input[type=url]:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .55rem 1.1rem;
+      border-radius: 7px;
+      border: none;
+      font-size: .875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, opacity .15s, transform .08s;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-danger  { background: var(--red);    color: #fff; }
+    .btn-danger:hover:not(:disabled)  { background: #b91c1c; }
+    .btn-outline { background: transparent;   color: var(--text); border: 1px solid var(--border); }
+    .btn-outline:hover:not(:disabled) { background: var(--bg); }
+    .btn-green   { background: var(--green);  color: #fff; }
+    .btn-green:hover:not(:disabled)   { background: #15803d; }
+    .btn-sm { padding: .38rem .8rem; font-size: .8rem; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.over { border-color: var(--accent); background: #eff6ff; }
+    .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .drop-icon { font-size: 2rem; margin-bottom: .6rem; }
+    .drop-text { font-size: .9rem; color: var(--muted); }
+    .drop-text strong { color: var(--accent); }
+    .file-chosen { margin-top: .8rem; font-size: .85rem; color: var(--text); font-weight: 600; }
+
+    /* ── Options grid ── */
+    .options-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .9rem; }
+
+    /* ── Segmented control ── */
+    .seg-ctrl { display: flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+    .seg-ctrl input[type=radio] { display: none; }
+    .seg-ctrl label {
+      flex: 1; text-align: center; padding: .52rem .5rem; cursor: pointer;
+      font-size: .82rem; font-weight: 600; color: var(--muted); background: var(--surface);
+      border-right: 1px solid var(--border); transition: background .15s, color .15s; margin: 0;
+    }
+    .seg-ctrl label:last-of-type { border-right: none; }
+    .seg-ctrl input[type=radio]:checked + label { background: var(--accent); color: #fff; }
+
+    /* ── Checkboxes ── */
+    .check-row { display: flex; gap: 1.25rem; flex-wrap: wrap; margin-top: .25rem; }
+    .check-label {
+      display: flex; align-items: center; gap: .45rem;
+      font-size: .875rem; font-weight: 500; color: var(--text); cursor: pointer;
+    }
+    .check-label input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+    /* ── Log ── */
+    .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .75rem; }
+    .log-box {
+      background: #0f172a; color: #e2e8f0; border-radius: 8px;
+      padding: 1rem 1.1rem; font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+      font-size: .78rem; line-height: 1.6; height: 300px; overflow-y: auto;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .log-box .log-err  { color: #f87171; }
+    .log-box .log-ok   { color: #4ade80; }
+    .log-box .log-info { color: #93c5fd; }
+
+    /* ── Progress bar ── */
+    .progress-wrap { height: 5px; background: var(--border); border-radius: 3px; margin-top: .75rem; overflow: hidden; }
+    .progress-bar  { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width .3s; }
+    .progress-bar.indeterminate { animation: indeterminate 1.4s ease-in-out infinite; width: 30%; }
+    @keyframes indeterminate { 0%{transform:translateX(-100%)} 100%{transform:translateX(400%)} }
+
+    /* ── Action row ── */
+    .action-row { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
+
+    /* ── Download banner ── */
+    .download-banner {
+      display: none; align-items: center; gap: 1rem;
+      padding: 1rem 1.25rem; background: #f0fdf4; border: 1px solid #bbf7d0;
+      border-radius: var(--radius); font-size: .9rem; color: var(--green); font-weight: 600;
+    }
+    .download-banner.show { display: flex; }
+    .download-banner .dl-name { font-weight: 700; }
+    .download-banner .btn { margin-left: auto; }
+
+    /* ── Alert ── */
+    .alert { display: none; padding: .75rem 1rem; border-radius: 7px; font-size: .875rem; font-weight: 500; }
+    .alert.show { display: block; }
+    .alert-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+
+    @media (max-width: 600px) {
+      .connect-row { flex-direction: column; }
+      .options-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+{% if not user %}
+<!-- ══════════════════════════════════════════════════════════════════════
+     LOGIN PAGE  (shown when the user is not signed in to our app)
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="login-wrap">
+  <div class="login-card">
+    <h2>Alt Text Automation</h2>
+    <p>Sign in with your UMich Google account to get started.</p>
+    <a href="/login" class="btn-google">
+      <!-- Google "G" logo -->
+      <svg class="google-logo" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+        <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+        <path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.548 0 9s.348 2.825.957 4.039l3.007-2.332z" fill="#FBBC05"/>
+        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z" fill="#EA4335"/>
+      </svg>
+      Sign in with Google
+    </a>
+  </div>
+</div>
+
+{% else %}
+<!-- ══════════════════════════════════════════════════════════════════════
+     MAIN APP  (shown when the user is signed in to our app)
+     ══════════════════════════════════════════════════════════════════════ -->
+
+<header>
+  <div>
+    <h1>Alt Text Automation</h1>
+    <div class="subtitle">AI-powered alt text for PowerPoint presentations</div>
+  </div>
+  <div class="header-right">
+    <span class="user-chip">Signed in as <strong>{{ user.name }}</strong></span>
+    <div class="status-pill disconnected" id="statusPill">
+      <span class="status-dot"></span>
+      <span id="statusText">Checking…</span>
+    </div>
+    <a href="/logout" class="btn btn-outline btn-sm">Sign out</a>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- ── AI Helper sign-in card ── -->
+  <div class="card">
+    <div class="card-title">AI Helper Connection</div>
+    <div class="connect-row">
+      <div class="field-group">
+        <label for="toolUrl">Tool URL</label>
+        <input type="url" id="toolUrl" value="{{ default_url }}" placeholder="https://…" />
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:flex-end">
+        <button class="btn btn-primary" id="connectBtn" onclick="connectAiHelper()">
+          Connect
+        </button>
+        <button class="btn btn-outline" id="disconnectBtn" onclick="disconnectAiHelper()" disabled>
+          Disconnect
+        </button>
+      </div>
+    </div>
+
+    <!-- Status message (e.g. error text) -->
+    <div id="statusMsg" style="font-size:.82rem;color:var(--muted);margin-top:.6rem;"></div>
+
+    <!-- noVNC hint — shown while the browser is open waiting for sign-in -->
+    <div class="novnc-hint" id="novncHint">
+      A browser window is now open on the server.
+      <strong>Open the sign-in browser:</strong>
+      <a id="novncLink" href="#" target="_blank">open browser window ↗</a><br/>
+      Sign in with your UMich Google account there, then return here.
+      This tab will update automatically once sign-in is complete.
+    </div>
+  </div>
+
+  <!-- ── Upload card ── -->
+  <div class="card">
+    <div class="card-title">Upload Presentation</div>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".pptx" onchange="onFileChosen(this)" />
+      <div class="drop-icon">📎</div>
+      <div class="drop-text"><strong>Click to browse</strong> or drag &amp; drop a .pptx file</div>
+      <div class="file-chosen" id="fileChosen"></div>
+    </div>
+  </div>
+
+  <!-- ── Options card ── -->
+  <div class="card">
+    <div class="card-title">Options</div>
+    <div class="options-grid">
+
+      <div>
+        <label>Alt text length</label>
+        <div class="seg-ctrl">
+          <input type="radio" name="version" id="v-short"  value="short"  />
+          <label for="v-short">Short</label>
+          <input type="radio" name="version" id="v-medium" value="medium" />
+          <label for="v-medium">Medium</label>
+          <input type="radio" name="version" id="v-long"   value="long"   checked />
+          <label for="v-long">Long</label>
+        </div>
+      </div>
+
+      <div>
+        <label for="purposeSel">Purpose</label>
+        <select id="purposeSel">
+          <option value="">(none)</option>
+          {% for p in purpose_options %}
+          <option value="{{ p }}">{{ p|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label for="toneSel">Tone</label>
+        <select id="toneSel">
+          <option value="">(none)</option>
+          {% for t in tone_options %}
+          <option value="{{ t }}">{{ t|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label>Include</label>
+        <div class="check-row" style="margin-top:.4rem">
+          <label class="check-label">
+            <input type="checkbox" id="chkData" /> Data values
+          </label>
+          <label class="check-label">
+            <input type="checkbox" id="chkCaptions" /> Captions / labels
+          </label>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Process card ── -->
+  <div class="card">
+    <div class="card-title">Process</div>
+    <div class="action-row">
+      <button class="btn btn-primary" id="runBtn" onclick="startProcessing()" disabled style="min-width:120px">
+        ▶ Generate Alt Text
+      </button>
+      <button class="btn btn-danger btn-sm" id="stopBtn" onclick="stopProcessing()" disabled>
+        ■ Stop
+      </button>
+    </div>
+    <div class="progress-wrap" style="margin-top:1rem">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div class="log-header" style="margin-top:1.25rem">
+      <span style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Log</span>
+      <button class="btn btn-outline btn-sm" onclick="clearLog()">Clear</button>
+    </div>
+    <div class="log-box" id="logBox"></div>
+
+    <div class="download-banner" id="downloadBanner">
+      <span>✓ Done —</span>
+      <span class="dl-name" id="dlName"></span>
+      <a class="btn btn-green btn-sm" id="dlLink" href="#" download>⬇ Download</a>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // ── Constants injected from the server ───────────────────────────────────────
+  // NOVNC_URL is the configured noVNC address; if empty we build one from the
+  // current hostname so it works for local development too.
+  const NOVNC_URL_CONFIGURED = {{ novnc_url | tojson }};
+  const novncUrl = NOVNC_URL_CONFIGURED ||
+    (window.location.protocol + '//' + window.location.hostname + ':6080/vnc.html');
+
+  // ── State ────────────────────────────────────────────────────────────────────
+  let currentJobId  = null;
+  let currentStatus = 'none';
+
+  // ── Status polling ───────────────────────────────────────────────────────────
+  function pollStatus() {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(data => applyStatus(data.ai_helper, data.signin_locked))
+      .catch(() => {});
+  }
+  setInterval(pollStatus, 2500);
+  pollStatus();
+
+  const STATUS_LABELS = {
+    none:       'Not connected',
+    launching:  'Launching browser…',
+    waiting:    'Waiting for sign-in…',
+    ready:      'Signed in ✓',
+    timeout:    'Sign-in timed out',
+    error:      'Connection error',
+  };
+
+  function applyStatus(ai, signinLocked) {
+    const status = ai.status;
+    currentStatus = status;
+
+    const pill   = document.getElementById('statusPill');
+    const txt    = document.getElementById('statusText');
+    const msgEl  = document.getElementById('statusMsg');
+    const hint   = document.getElementById('novncHint');
+    const link   = document.getElementById('novncLink');
+
+    pill.className     = 'status-pill ' + status;
+    txt.textContent    = STATUS_LABELS[status] || status;
+    msgEl.textContent  = ai.msg || '';
+
+    const isReady    = status === 'ready';
+    const isWaiting  = status === 'waiting';
+    const isBusy     = status === 'launching' || isWaiting;
+    const canConnect = !isBusy && !isReady;
+
+    document.getElementById('connectBtn').disabled    = !canConnect || signinLocked;
+    document.getElementById('disconnectBtn').disabled = !isReady && !isBusy;
+
+    // Show noVNC hint and link when the browser is open waiting for sign-in.
+    if (isWaiting) {
+      link.href = novncUrl;
+      hint.classList.add('show');
+    } else {
+      hint.classList.remove('show');
+    }
+
+    // Enable run button only when ready, a file is chosen, and not already running.
+    const hasFile = !!document.getElementById('fileInput').files[0];
+    document.getElementById('runBtn').disabled = !isReady || !hasFile || !!currentJobId;
+  }
+
+  // ── Connect / disconnect ─────────────────────────────────────────────────────
+  function connectAiHelper() {
+    const url = document.getElementById('toolUrl').value.trim();
+    fetch('/api/ai-connect', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        document.getElementById('statusMsg').textContent = data.error;
+      } else {
+        pollStatus();
+      }
+    })
+    .catch(err => {
+      document.getElementById('statusMsg').textContent = 'Error: ' + err;
+    });
+  }
+
+  function disconnectAiHelper() {
+    fetch('/api/ai-disconnect', {method: 'POST'})
+      .then(() => pollStatus())
+      .catch(() => {});
+  }
+
+  // ── File input ───────────────────────────────────────────────────────────────
+  function onFileChosen(input) {
+    const file = input.files[0];
+    document.getElementById('fileChosen').textContent = file ? '📄 ' + file.name : '';
+    document.getElementById('runBtn').disabled =
+      !(file && currentStatus === 'ready' && !currentJobId);
+    document.getElementById('downloadBanner').classList.remove('show');
+  }
+
+  const dz = document.getElementById('dropZone');
+  dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', ()  => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (f && f.name.toLowerCase().endsWith('.pptx')) {
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      document.getElementById('fileInput').files = dt.files;
+      onFileChosen(document.getElementById('fileInput'));
+    }
+  });
+
+  // ── Processing ───────────────────────────────────────────────────────────────
+  function startProcessing() {
+    const fileInput = document.getElementById('fileInput');
+    if (!fileInput.files[0]) return;
+
+    clearLog();
+    document.getElementById('downloadBanner').classList.remove('show');
+
+    const fd = new FormData();
+    fd.append('file',    fileInput.files[0]);
+    fd.append('version', document.querySelector('input[name="version"]:checked').value);
+    fd.append('purpose', document.getElementById('purposeSel').value);
+    fd.append('tone',    document.getElementById('toneSel').value);
+    if (document.getElementById('chkData').checked)     fd.append('include_data_values', '1');
+    if (document.getElementById('chkCaptions').checked) fd.append('include_captions', '1');
+    fd.append('url', document.getElementById('toolUrl').value.trim());
+
+    document.getElementById('runBtn').disabled  = true;
+    document.getElementById('stopBtn').disabled = false;
+    startProgress();
+
+    fetch('/api/process', {method: 'POST', body: fd})
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          appendLog('ERROR: ' + data.error, 'err');
+          onJobDone(null);
+          return;
+        }
+        currentJobId = data.job_id;
+        streamProgress(data.job_id);
+      })
+      .catch(err => { appendLog('ERROR: ' + err, 'err'); onJobDone(null); });
+  }
+
+  function streamProgress(jobId) {
+    const es = new EventSource('/api/progress/' + jobId);
+    es.onmessage = function(e) {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'log') {
+        appendLog(msg.text);
+      } else if (msg.type === 'done') {
+        appendLog('✓ Complete!', 'ok');
+        showDownload(jobId);
+        onJobDone(jobId);
+        es.close();
+      } else if (msg.type === 'aborted') {
+        appendLog('⚠ Processing stopped. Any completed slides have been saved.', 'info');
+        showDownload(jobId);
+        onJobDone(null);
+        es.close();
+      } else if (msg.type === 'auth_expired') {
+        appendLog('SESSION EXPIRED: ' + msg.text, 'err');
+        onJobDone(null);
+        pollStatus();   // UI will show "Not connected" and re-enable Connect button
+        es.close();
+      } else if (msg.type === 'error') {
+        appendLog('ERROR: ' + msg.text, 'err');
+        onJobDone(null);
+        es.close();
+      }
+    };
+    es.onerror = function() { es.close(); onJobDone(null); };
+  }
+
+  function stopProcessing() {
+    if (!currentJobId) return;
+    fetch('/api/stop/' + currentJobId, {method: 'POST'}).catch(() => {});
+    document.getElementById('stopBtn').disabled = true;
+    document.getElementById('stopBtn').textContent = '⏳ Stopping…';
+  }
+
+  function onJobDone(jobId) {
+    currentJobId = null;
+    stopProgress();
+    document.getElementById('stopBtn').disabled = true;
+    document.getElementById('stopBtn').textContent = '■ Stop';
+    const hasFile = !!document.getElementById('fileInput').files[0];
+    document.getElementById('runBtn').disabled = !(currentStatus === 'ready' && hasFile);
+    pollStatus();
+  }
+
+  function showDownload(jobId) {
+    const filename = document.getElementById('fileChosen').textContent.replace('📄 ', '');
+    const stem     = filename.replace(/\.pptx$/i, '');
+    document.getElementById('dlName').textContent = stem + '_alt_text.pptx';
+    document.getElementById('dlLink').href        = '/api/download/' + jobId;
+    document.getElementById('downloadBanner').classList.add('show');
+  }
+
+  // ── Log helpers ──────────────────────────────────────────────────────────────
+  function appendLog(text, cls) {
+    const box  = document.getElementById('logBox');
+    const span = document.createElement('span');
+    if (cls === 'err')  span.className = 'log-err';
+    if (cls === 'ok')   span.className = 'log-ok';
+    if (cls === 'info') span.className = 'log-info';
+    span.textContent = text;
+    box.appendChild(span);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function clearLog() { document.getElementById('logBox').innerHTML = ''; }
+
+  // ── Progress bar ─────────────────────────────────────────────────────────────
+  function startProgress() {
+    document.getElementById('progressBar').className = 'progress-bar indeterminate';
+  }
+  function stopProgress() {
+    const bar = document.getElementById('progressBar');
+    bar.className = 'progress-bar';
+    bar.style.width = '0';
+  }
+</script>
+
+{% endif %}
+</body>
+</html>
