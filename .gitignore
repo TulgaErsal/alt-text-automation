@@ -1,6 +1,5 @@
 *.pptx
 *.pyc
 __pycache__/
-.env
 sessions/
 private/
