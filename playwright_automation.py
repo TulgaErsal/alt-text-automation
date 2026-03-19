@@ -304,7 +304,6 @@ def run_batch_headless(
     log(f"Total images : {len(images)}")
     log(f"  Processed  : {ok}")
     log(f"  Errors     : {errors}")
-    log(f"Output saved : {output_path}")
 
 
 def _drive_form(

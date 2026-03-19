@@ -392,7 +392,7 @@ def api_download(job_id: str):
     if not output_path.exists():
         return jsonify({"error": "Output file not found"}), 404
 
-    return send_file(
+    response = send_file(
         output_path,
         as_attachment=True,
         download_name=job["output_name"],
@@ -401,6 +401,15 @@ def api_download(job_id: str):
             ".presentationml.presentation"
         ),
     )
+
+    try:
+        output_path.unlink(missing_ok=True)
+    except Exception:
+        pass
+    with _jobs_lock:
+        _jobs.pop(job_id, None)
+
+    return response
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
