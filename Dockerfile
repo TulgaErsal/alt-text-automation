@@ -27,9 +27,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ── Playwright: download Chromium + its OS-level dependencies ─────────────────
-# `playwright install-deps chromium` installs the shared libraries that the
-# bundled Chromium binary needs (fonts, nss, etc.).
-RUN playwright install chromium \
+# Set HOME so Chromium is installed to the same path used at runtime.
+RUN mkdir -p /home/appuser \
+ && HOME=/home/appuser playwright install chromium \
  && playwright install-deps chromium
 
 # ── Application files ──────────────────────────────────────────────────────────
